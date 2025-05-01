@@ -61,13 +61,15 @@ RUN add-apt-repository -y ppa:deadsnakes/ppa
 
 ARG python_version
 
-# 處理 Python 版本字串，確保可用於套件名稱
-RUN PYTHON_PKG_VERSION=$(echo "${python_version}" | cut -d. -f1-2) \
+# 安裝 Python 相關套件和其他建構相依套件
+RUN set -x \
+    && python_major_version=$(echo "${python_version}" | cut -d. -f1,2) \
+    && echo "正在安裝 Python ${python_major_version}" \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
        build-essential \
-       python${PYTHON_PKG_VERSION}-dev \
-       python${PYTHON_PKG_VERSION}-venv \
+       python$python_major_version-dev \
+       python$python_major_version-venv \
        # we need python 3 for our helper scripts
        python3 \
        python3-venv \
