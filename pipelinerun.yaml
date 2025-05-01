@@ -20,15 +20,18 @@ spec:
   - name: gh-docker-credentials
     secret:
       secretName: gh-docker-credentials
+  - name: git-credentials
+    secret:
+      secretName: git-credentials
   params:
   - name: repo-url
     value: git@github.com:stanleykao72/oca-ci.git
   - name: revision
     value: "ubuntu-24.04"
   - name: image-reference
-    value: ghcr.io/stanleykao72/oca-ci:18.0
+    value: ghcr.io/stanleykao72/py3.12-odoo18.0:latest
   - name: python_version
-    value: "3.12.3"
+    value: "3.12"
   - name: odoo_version
     value: "18.0"
   - name: codename

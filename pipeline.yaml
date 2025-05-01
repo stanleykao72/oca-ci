@@ -113,11 +113,15 @@ spec:
     type: string
   - name: python_version
     type: string
+  - name: odoo_version
+    type: string
   - name: codename
     type: string
   workspaces:
   - name: shared-data
   - name: gh-docker-credentials
+  - name: git-credentials
+    description: SSH credentials for git access
   tasks:
   - name: fetch-source
     taskRef:
@@ -125,6 +129,8 @@ spec:
     workspaces:
     - name: output
       workspace: shared-data
+    - name: ssh-directory
+      workspace: git-credentials
     params:
     - name: url
       value: $(params.repo-url)
