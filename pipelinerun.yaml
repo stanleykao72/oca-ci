@@ -27,12 +27,12 @@ spec:
   - name: repo-url
     value: git@github.com:stanleykao72/oca-ci.git
   - name: revision
-    value: "main"
-  - name: api-image
-    value: ghcr.io/stanleykao72/oca-ci:main
-  - name: web-image
+    value: "ubuntu-24.04"
+  - name: image
     value: ghcr.io/stanleykao72/oca-ci/py3.12.3-odoo18.0:latest
   - name: python_version
     value: "3.12.3"
   - name: odoo_version
     value: "18.0"
+  - name: codename
+    value: noble

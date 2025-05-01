@@ -8,9 +8,7 @@ spec:
   params:
   - name: repo-url
     type: string
-  - name: api-image
-    type: string
-  - name: web-image
+  - name: image
     type: string
   - name: revision
     type: string
@@ -20,7 +18,7 @@ spec:
     type: string
   - name: codename
     type: string
-    default: focal
+    default: noble
   - name: odoo_org_repo
     type: string
     default: odoo/odoo
@@ -71,7 +69,7 @@ spec:
     - name: source
       workspace: shared-data
   
-  - name: build-api
+  - name: build
     runAfter: ["check-files-before-build"]
     taskRef:
       name: kaniko
@@ -82,34 +80,7 @@ spec:
       workspace: docker-credentials
     params:
     - name: IMAGE
-      value: $(params.api-image)
-    - name: DOCKERFILE
-      value: Dockerfile
-    - name: CONTEXT
-      value: .
-    - name: KANIKO_EXTRA_ARGS
-      value:
-        - --build-arg=python_version=$(params.python_version)
-        - --build-arg=odoo_version=$(params.odoo_version)
-        - --build-arg=codename=$(params.codename)
-        - --build-arg=odoo_org_repo=$(params.odoo_org_repo)
-        - --workdir=/workspace/source
-        - --push-retry=5
-        - --compressed-caching=false
-        - --push-timeout=10m
-
-  - name: build-web
-    runAfter: ["check-files-before-build"]
-    taskRef:
-      name: kaniko
-    workspaces:
-    - name: source
-      workspace: shared-data
-    - name: dockerconfig
-      workspace: docker-credentials
-    params:
-    - name: IMAGE
-      value: $(params.web-image)
+      value: $(params.image)
     - name: DOCKERFILE
       value: Dockerfile
     - name: CONTEXT
