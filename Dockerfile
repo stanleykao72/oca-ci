@@ -23,6 +23,7 @@ ENV PIPX_BIN_DIR=/usr/local/bin
 RUN case $(lsb_release -c -s) in \
       focal) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.focal_amd64.deb ;; \
       jammy) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb ;; \
+      noble) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.jammy_amd64.deb ;; \
     esac \
     && curl -sSL $WKHTML_DEB_URL -o /tmp/wkhtml.deb \
     && apt-get update -qq \
@@ -35,6 +36,8 @@ RUN case $(lsb_release -c -s) in \
              && curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - ;; \
       jammy) NODE_SOURCE="deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
              && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg ;; \
+      noble) NODE_SOURCE="deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
+             && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg ;; \
     esac \
     && echo "$NODE_SOURCE" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update -qq \
@@ -46,7 +49,7 @@ RUN npm install -g rtlcss less@3.0.4 less-plugin-clean-css
 RUN curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -s -c`-pgdg main" > /etc/apt/sources.list.d/pgclient.list \
     && apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client-12
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client
 
 # Install Google following Odoo's Runbot guideline https://github.com/odoo/runbot/blob/f8f435d468135486146a2e61e8d15d0f453c0e15/runbot/data/dockerfile_data.xml#L139-L140
 RUN curl -sSL https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_126.0.6478.182-1_amd64.deb -o /tmp/chrome.deb \
