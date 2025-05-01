@@ -61,12 +61,13 @@ RUN add-apt-repository -y ppa:deadsnakes/ppa
 
 ARG python_version
 
-# Install build dependencies for python libs commonly used by Odoo and OCA
-RUN apt-get update -qq \
+# 處理 Python 版本字串，確保可用於套件名稱
+RUN PYTHON_PKG_VERSION=$(echo "${python_version}" | cut -d. -f1-2) \
+    && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
        build-essential \
-       python${python_version}-dev \
-       python${python_version}-venv \
+       python${PYTHON_PKG_VERSION}-dev \
+       python${PYTHON_PKG_VERSION}-venv \
        # we need python 3 for our helper scripts
        python3 \
        python3-venv \

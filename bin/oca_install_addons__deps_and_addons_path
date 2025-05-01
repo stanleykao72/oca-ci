@@ -23,7 +23,7 @@ env SETUPTOOLS_ODOO_POST_VERSION_STRATEGY_OVERRIDE=none \
     pyproject-dependencies \
       --no-isolation \
       --ignore-build-errors \
-      ${ADDONS_DIR}/*/pyproject.toml ${ADDONS_DIR}/setup/*/setup.py \
+      ${ADDONS_DIR}/pyproject.toml ${ADDONS_DIR}/*/pyproject.toml ${ADDONS_DIR}/setup/*/setup.py \
       >> test-requirements.txt
 cat test-requirements.txt
 

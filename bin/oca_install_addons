@@ -10,7 +10,7 @@ oca_install_addons__deps_and_addons_path
 pip freeze
 
 # Add ADDONS_DIR to addons_path.
-echo "addons_path=${ADDONS_PATH},${ADDONS_DIR}" >> ${ODOO_RC}
+# echo "addons_path=${ADDONS_PATH},${ADDONS_DIR}" >> ${ODOO_RC}
 cat ${ODOO_RC}
 
 deps=$(oca_list_external_dependencies deb)
