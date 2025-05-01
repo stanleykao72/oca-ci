@@ -69,7 +69,7 @@ spec:
     - name: source
       workspace: shared-data
   
-  - name: build
+  - name: build-push
     runAfter: ["check-files-before-build"]
     taskRef:
       name: kaniko
