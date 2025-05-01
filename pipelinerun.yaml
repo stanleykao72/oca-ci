@@ -19,7 +19,7 @@ spec:
             storage: 10Gi
   - name: docker-credentials
     secret:
-      secretName: docker-credentials
+      secretName: gh-docker-credentials
   - name: git-credentials
     secret:
       secretName: git-credentials

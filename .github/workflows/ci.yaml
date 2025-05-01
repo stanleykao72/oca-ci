@@ -115,6 +115,11 @@ jobs:
             odoo_version: "18.0"
             odoo_org_repo: "oca/ocb"
             image_name: py3.10-ocb18.0
+          - python_version: "3.12"
+            codename: jammy
+            odoo_version: "18.0"
+            odoo_org_repo: "oca/ocb"
+            image_name: py3.12-ocb18.0
     services:
       postgres:
         image: postgres:12
