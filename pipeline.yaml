@@ -24,7 +24,7 @@ spec:
     default: odoo/odoo
   workspaces:
   - name: shared-data
-  - name: docker-credentials
+  - name: gh-docker-credentials
   - name: git-credentials
     description: SSH credentials for git access
   tasks:
@@ -77,7 +77,7 @@ spec:
     - name: source
       workspace: shared-data
     - name: dockerconfig
-      workspace: docker-credentials
+      workspace: gh-docker-credentials
     params:
     - name: IMAGE
       value: $(params.image)
