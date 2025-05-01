@@ -1,8 +1,19 @@
 ARG codename=focal
+ARG python_version=3.12
+ARG odoo_version=16.0
+ARG odoo_org_repo=odoo/odoo
 
 FROM ubuntu:$codename
 ENV LANG=C.UTF-8
 USER root
+
+# 重新宣告 ARG 使其在此階段可用
+ARG python_version
+ARG odoo_version
+ARG odoo_org_repo
+
+# 顯示建構參數以便除錯
+RUN echo "收到的建構參數: python_version=${python_version}, codename=${codename}, odoo_version=${odoo_version}"
 
 # Basic dependencies
 RUN apt-get update -qq \
