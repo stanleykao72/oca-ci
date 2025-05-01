@@ -1,32 +1,123 @@
+# apiVersion: tekton.dev/v1beta1
+# kind: Pipeline
+# metadata:
+#   name: oca-build-pipeline
+# spec:
+#   description: |
+#     This pipeline builds and deploys Runboat's API and Web services
+#   params:
+#   - name: repo-url
+#     type: string
+#   - name: image
+#     type: string
+#   - name: revision
+#     type: string
+#   - name: python_version
+#     type: string
+#   - name: odoo_version
+#     type: string
+#   - name: codename
+#     type: string
+#     default: noble
+#   - name: odoo_org_repo
+#     type: string
+#     default: odoo/odoo
+#   workspaces:
+#   - name: shared-data
+#   - name: gh-docker-credentials
+#   - name: git-credentials
+#     description: SSH credentials for git access
+#   tasks:
+#   - name: fetch-source
+#     taskRef:
+#       name: git-clone
+#     workspaces:
+#     - name: output
+#       workspace: shared-data
+#     - name: ssh-directory
+#       workspace: git-credentials
+#     params:
+#     - name: url
+#       value: $(params.repo-url)
+#     - name: revision
+#       value: $(params.revision)
+  
+#   # 修改 debug 任務以使用正確的工作區名稱
+#   - name: debug
+#     runAfter: ["fetch-source"]
+#     taskRef:
+#       name: debug-list-files
+#     workspaces:
+#     - name: output
+#       workspace: shared-data
+  
+#   # 添加一個 ls 任務來檢視 kaniko 任務中的文件結構
+#   - name: check-files-before-build
+#     runAfter: ["debug"]
+#     taskSpec:
+#       workspaces:
+#       - name: source
+#       steps:
+#       - name: list-source
+#         image: alpine
+#         script: |
+#           echo "=== 檢查 kaniko 任務的工作區 ==="
+#           ls -la /workspace/source/
+#           echo "=== 檢查源碼庫 ==="
+#           find /workspace -name "Dockerfile" | sort
+#     workspaces:
+#     - name: source
+#       workspace: shared-data
+  
+#   - name: build-push
+#     runAfter: ["check-files-before-build"]
+#     taskRef:
+#       name: kaniko
+#     workspaces:
+#     - name: source
+#       workspace: shared-data
+#     - name: dockerconfig
+#       workspace: gh-docker-credentials
+#     params:
+#     - name: IMAGE
+#       value: $(params.image)
+#     - name: DOCKERFILE
+#       value: Dockerfile
+#     - name: CONTEXT
+#       value: .
+#     - name: KANIKO_EXTRA_ARGS
+#       value:
+#         - --build-arg=python_version=$(params.python_version)
+#         - --build-arg=odoo_version=$(params.odoo_version)
+#         - --build-arg=codename=$(params.codename)
+#         - --build-arg=odoo_org_repo=$(params.odoo_org_repo)
+#         - --workdir=/workspace/source
+#         - --push-retry=5
+#         - --compressed-caching=false
+#         - --push-timeout=10m
+
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: oca-build-pipeline
+  name: oca-clone-build-push
 spec:
-  description: |
-    This pipeline builds and deploys Runboat's API and Web services
+  description: | 
+    This pipeline clones a git repo, builds a Docker image with Kaniko and
+    pushes it to a registry
   params:
   - name: repo-url
     type: string
-  - name: image
+  - name: image-reference
     type: string
   - name: revision
     type: string
   - name: python_version
     type: string
-  - name: odoo_version
-    type: string
   - name: codename
     type: string
-    default: noble
-  - name: odoo_org_repo
-    type: string
-    default: odoo/odoo
   workspaces:
   - name: shared-data
   - name: gh-docker-credentials
-  - name: git-credentials
-    description: SSH credentials for git access
   tasks:
   - name: fetch-source
     taskRef:
@@ -34,43 +125,13 @@ spec:
     workspaces:
     - name: output
       workspace: shared-data
-    - name: ssh-directory
-      workspace: git-credentials
     params:
     - name: url
       value: $(params.repo-url)
     - name: revision
       value: $(params.revision)
-  
-  # 修改 debug 任務以使用正確的工作區名稱
-  - name: debug
-    runAfter: ["fetch-source"]
-    taskRef:
-      name: debug-list-files
-    workspaces:
-    - name: output
-      workspace: shared-data
-  
-  # 添加一個 ls 任務來檢視 kaniko 任務中的文件結構
-  - name: check-files-before-build
-    runAfter: ["debug"]
-    taskSpec:
-      workspaces:
-      - name: source
-      steps:
-      - name: list-source
-        image: alpine
-        script: |
-          echo "=== 檢查 kaniko 任務的工作區 ==="
-          ls -la /workspace/source/
-          echo "=== 檢查源碼庫 ==="
-          find /workspace -name "Dockerfile" | sort
-    workspaces:
-    - name: source
-      workspace: shared-data
-  
   - name: build-push
-    runAfter: ["check-files-before-build"]
+    runAfter: ["fetch-source"]
     taskRef:
       name: kaniko
     workspaces:
@@ -80,18 +141,9 @@ spec:
       workspace: gh-docker-credentials
     params:
     - name: IMAGE
-      value: $(params.image)
-    - name: DOCKERFILE
-      value: Dockerfile
-    - name: CONTEXT
-      value: .
+      value: $(params.image-reference)
     - name: KANIKO_EXTRA_ARGS
       value:
         - --build-arg=python_version=$(params.python_version)
-        - --build-arg=odoo_version=$(params.odoo_version)
         - --build-arg=codename=$(params.codename)
-        - --build-arg=odoo_org_repo=$(params.odoo_org_repo)
-        - --workdir=/workspace/source
-        - --push-retry=5
-        - --compressed-caching=false
-        - --push-timeout=10m
+        - --build-arg=odoo_version=$(params.odoo_version)
