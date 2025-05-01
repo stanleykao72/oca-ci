@@ -116,13 +116,24 @@ ARG build_deps="setuptools-odoo wheel whool"
 RUN pipx install --pip-args="--no-cache-dir" pyproject-dependencies
 RUN pipx inject --pip-args="--no-cache-dir" pyproject-dependencies $build_deps
 
-# Make a virtualenv for Odoo so we isolate from system python dependencies and
-# make sure addons we test declare all their python dependencies properly
+# 使用啟動腳本來處理虛擬環境位置
+RUN echo '#!/bin/bash\n\
+mkdir -p /mnt/data/odoo-venv\n\
+if [ ! -d "/mnt/data/odoo-venv/bin" ] || [ ! -f "/mnt/data/odoo-venv/bin/python" ]; then\n\
+  echo "正在建立新的虛擬環境到 /mnt/data/odoo-venv ..."\n\
+  python$python_version -m venv /mnt/data/odoo-venv\n\
+  /mnt/data/odoo-venv/bin/pip install -U "setuptools$setuptools_constraint" "wheel" "pip"\n\
+else\n\
+  echo "使用現有的虛擬環境 /mnt/data/odoo-venv"\n\
+fi\n\
+# 建立符號連結，保持與其他程式碼相容性\n\
+ln -sf /mnt/data/odoo-venv /opt/odoo-venv\n\
+exec "$@"' > /usr/local/bin/docker-entrypoint.sh \
+&& chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 修改原本的虛擬環境建立程式碼
 ARG setuptools_constraint
-RUN python$python_version -m venv /opt/odoo-venv \
-    && /opt/odoo-venv/bin/pip install -U "setuptools$setuptools_constraint" "wheel" "pip" \
-    && /opt/odoo-venv/bin/pip list
-ENV PATH=/opt/odoo-venv/bin:$PATH
+ENV PATH=/mnt/data/odoo-venv/bin:/opt/odoo-venv/bin:$PATH
 
 ARG odoo_version
 
@@ -134,14 +145,20 @@ ADD https://raw.githubusercontent.com/OCA/OCB/$odoo_version/requirements.txt /tm
 # oldest pinned in Odoo's requirements.txt don't have wheels, and don't build
 # anymore with the latest cython.
 RUN sed -i -E "s/^(gevent|greenlet)==.*/\1/" /tmp/ocb-requirements.txt \
- && pip install --no-cache-dir \
+ && mkdir -p /mnt/data \
+ && chmod 777 /mnt/data \
+ && if [ ! -d "/mnt/data/odoo-venv" ]; then \
+      python$python_version -m venv /mnt/data/odoo-venv; \
+      /mnt/data/odoo-venv/bin/pip install -U "setuptools$setuptools_constraint" "wheel" "pip"; \
+    fi \
+ && /mnt/data/odoo-venv/bin/pip install --no-cache-dir \
       -r /tmp/ocb-requirements.txt \
       packaging
 
 # Install other test requirements.
 # - coverage
 # - websocket-client is required for Odoo browser tests
-RUN pip install --no-cache-dir \
+RUN /mnt/data/odoo-venv/bin/pip install --no-cache-dir \
   coverage \
   websocket-client
 
@@ -151,9 +168,9 @@ ADD https://api.github.com/repos/$odoo_org_repo/git/refs/heads/$odoo_version /tm
 RUN mkdir /tmp/getodoo \
     && (curl -sSL https://github.com/$odoo_org_repo/tarball/$odoo_version | tar -C /tmp/getodoo -xz) \
     && mv /tmp/getodoo/* /opt/odoo \
-    && rmdir /tmp/getodoo
-RUN pip install --no-cache-dir -e /opt/odoo \
-    && pip list
+    && rmdir /tmp/getodoo \
+    && /mnt/data/odoo-venv/bin/pip install --no-cache-dir -e /opt/odoo \
+    && /mnt/data/odoo-venv/bin/pip list
 
 # Make an empty odoo.cfg
 RUN echo "[options]" > /etc/odoo.cfg
@@ -181,3 +198,7 @@ ENV EXCLUDE=
 ENV OCA_GIT_USER_NAME=oca-ci
 ENV OCA_GIT_USER_EMAIL=oca-ci@odoo-community.org
 ENV OCA_ENABLE_CHECKLOG_ODOO=
+
+# 添加 ENTRYPOINT 指向我們的啟動腳本
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["bash"]
