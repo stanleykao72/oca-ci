@@ -1,6 +1,6 @@
-ARG codename=focal
+ARG codename=noble
 ARG python_version=3.12
-ARG odoo_version=16.0
+ARG odoo_version=18.0
 ARG odoo_org_repo=odoo/odoo
 
 FROM ubuntu:$codename
