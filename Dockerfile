@@ -28,8 +28,11 @@ RUN apt-get update -qq \
         software-properties-common \
         expect-dev \
         pipx \
-        # OpenCV 相依套件
-        libgl1-mesa-glx \
+        # OpenCV 相依套件 - 根據不同 Ubuntu 版本安裝對應套件
+        $(case $(lsb_release -c -s) in \
+            focal|jammy) echo "libgl1-mesa-glx" ;; \
+            noble|*) echo "libgl1" ;; \
+        esac) \
         libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
