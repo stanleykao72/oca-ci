@@ -8,6 +8,11 @@ spec:
   podTemplate:
     securityContext:
       fsGroup: 65532
+  taskRunSpecs:
+  - pipelineTaskName: build-push
+    taskPodTemplate:
+      securityContext:
+        runAsUser: 0
   workspaces:
   - name: shared-data
     volumeClaimTemplate:
@@ -29,7 +34,7 @@ spec:
   - name: revision
     value: "ubuntu-24.04"
   - name: image-reference
-    value: ghcr.io/stanleykao72/py3.12-odoo18.0:latest
+    value: ghcr.io/stanleykao72/py3.12-odoo18.0:18.01
   - name: python_version
     value: "3.12"
   - name: odoo_version
