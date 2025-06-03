@@ -111,7 +111,15 @@ RUN set -x \
        # some other build tools
        swig \
        libffi-dev \
-       pkg-config
+       pkg-config \
+       tesseract-ocr \
+       tesseract-ocr-eng \
+       tesseract-ocr-chi-tra \
+       libtesseract-dev \
+       fonts-noto-cjk \
+       fonts-arphic-uming \
+       fonts-wqy-zenhei \
+       fonts-wqy-microhei
 
 # We use manifestoo to check licenses, development status and list addons and dependencies
 RUN pipx install --pip-args="--no-cache-dir" "manifestoo>=0.3.1"
