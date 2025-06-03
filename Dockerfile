@@ -3,7 +3,10 @@ ARG python_version=3.12
 ARG odoo_version=18.0
 ARG odoo_org_repo=odoo/odoo
 
-FROM ubuntu:$codename
+# =====================================
+# 建構階段
+# =====================================
+FROM ubuntu:$codename as builder
 ENV LANG=C.UTF-8
 USER root
 
@@ -16,7 +19,83 @@ ARG codename
 # 顯示建構參數以便除錯
 RUN echo "收到的建構參數: python_version=${python_version}, codename=${codename}, odoo_version=${odoo_version}"
 
-# Basic dependencies
+# 安裝建構相依套件
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        gnupg \
+        lsb-release \
+        software-properties-common \
+        build-essential \
+        # Python 建構相依套件
+        python3 \
+        python3-venv \
+        python3-pip \
+        # 編譯相依套件
+        libpq-dev \
+        libxml2-dev \
+        libxslt1-dev \
+        libz-dev \
+        libxmlsec1-dev \
+        libldap2-dev \
+        libsasl2-dev \
+        libjpeg-dev \
+        libcups2-dev \
+        default-libmysqlclient-dev \
+        libffi-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# 加入 Python PPA 並安裝指定版本
+RUN add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update -qq \
+    && python_major_version=$(echo "${python_version}" | cut -d. -f1,2) \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+       python$python_major_version-dev \
+       python$python_major_version-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# 建立虛擬環境並安裝 Python 套件
+ARG setuptools_constraint
+RUN python$python_version -m venv /opt/odoo-venv \
+    && /opt/odoo-venv/bin/pip install -U "setuptools$setuptools_constraint" "wheel" "pip"
+
+ENV PATH=/opt/odoo-venv/bin:$PATH
+
+# 安裝 Odoo requirements
+ARG odoo_version
+ADD https://raw.githubusercontent.com/OCA/OCB/$odoo_version/requirements.txt /tmp/ocb-requirements.txt
+RUN sed -i -E "s/^(gevent|greenlet)==.*/\1/" /tmp/ocb-requirements.txt \
+    && pip install --no-cache-dir \
+        -r /tmp/ocb-requirements.txt \
+        packaging \
+        coverage \
+        websocket-client
+
+# 下載並安裝 Odoo
+ARG odoo_org_repo=odoo/odoo
+ADD https://api.github.com/repos/$odoo_org_repo/git/refs/heads/$odoo_version /tmp/odoo-version.json
+RUN mkdir /tmp/getodoo \
+    && (curl -sSL https://github.com/$odoo_org_repo/tarball/$odoo_version | tar -C /tmp/getodoo -xz) \
+    && mv /tmp/getodoo/* /opt/odoo \
+    && rmdir /tmp/getodoo \
+    && pip install --no-cache-dir -e /opt/odoo
+
+# =====================================
+# 執行階段
+# =====================================
+FROM ubuntu:$codename-slim as runtime
+ENV LANG=C.UTF-8
+USER root
+
+# 重新宣告 ARG
+ARG python_version
+ARG odoo_version
+ARG codename
+
+# 安裝執行時相依套件 (不包含建構工具)
 RUN apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
         ca-certificates \
@@ -25,20 +104,35 @@ RUN apt-get update -qq \
         git \
         gnupg \
         lsb-release \
-        software-properties-common \
         expect-dev \
-        pipx \
-        # OpenCV 相依套件 - 根據不同 Ubuntu 版本安裝對應套件
+        # 只安裝執行時需要的函式庫
+        libpq5 \
+        libxml2 \
+        libxslt1.1 \
+        libldap-2.5-0 \
+        libsasl2-2 \
+        libjpeg8 \
+        libcups2 \
+        libmysqlclient21 \
+        libffi8 \
+        # OpenCV 相依套件
         $(case $(lsb_release -c -s) in \
             focal|jammy) echo "libgl1-mesa-glx" ;; \
             noble|*) echo "libgl1" ;; \
         esac) \
         libglib2.0-0 \
+        # OCR 相關
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-chi-tra \
+        # 字型
+        fonts-noto-cjk \
+        fonts-arphic-uming \
+        fonts-wqy-zenhei \
+        fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PIPX_BIN_DIR=/usr/local/bin
-
-# Install wkhtml
+# 安裝 wkhtml (合併到一個 RUN 減少層數)
 RUN case $(lsb_release -c -s) in \
       focal) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.focal_amd64.deb ;; \
       jammy) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb ;; \
@@ -46,10 +140,11 @@ RUN case $(lsb_release -c -s) in \
     esac \
     && curl -sSL $WKHTML_DEB_URL -o /tmp/wkhtml.deb \
     && apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends /tmp/wkhtml.deb  \
-    && rm /tmp/wkhtml.deb
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends /tmp/wkhtml.deb \
+    && rm /tmp/wkhtml.deb \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install nodejs dependencies
+# 安裝 Node.js
 RUN case $(lsb_release -c -s) in \
       focal) NODE_SOURCE="deb https://deb.nodesource.com/node_15.x focal main" \
              && curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - ;; \
@@ -60,134 +155,60 @@ RUN case $(lsb_release -c -s) in \
     esac \
     && echo "$NODE_SOURCE" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -qq nodejs
-# less is for odoo<12
-RUN npm install -g rtlcss less@3.0.4 less-plugin-clean-css
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq nodejs \
+    && npm install -g rtlcss less@3.0.4 less-plugin-clean-css \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm cache clean --force
 
-# Install postgresql client
+# 安裝 PostgreSQL client
 RUN curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -s -c`-pgdg main" > /etc/apt/sources.list.d/pgclient.list \
     && apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Google following Odoo's Runbot guideline https://github.com/odoo/runbot/blob/f8f435d468135486146a2e61e8d15d0f453c0e15/runbot/data/dockerfile_data.xml#L139-L140
+# 安裝 Google Chrome (執行時需要)
 RUN curl -sSL https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_126.0.6478.182-1_amd64.deb -o /tmp/chrome.deb \
     && apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends /tmp/chrome.deb  \
-    && rm /tmp/chrome.deb
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends /tmp/chrome.deb \
+    && rm /tmp/chrome.deb \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository -y ppa:deadsnakes/ppa
-
-ARG python_version
-
-# 安裝 Python 相關套件和其他建構相依套件
-RUN set -x \
-    && python_major_version=$(echo "${python_version}" | cut -d. -f1,2) \
-    && echo "正在安裝 Python ${python_major_version}" \
-    && apt-get update -qq \
+# 安裝 pipx 工具和必要套件 (合併安裝減少層數)
+RUN apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
-       build-essential \
-       python$python_major_version-dev \
-       python$python_major_version-venv \
-       # we need python 3 for our helper scripts
-       python3 \
-       python3-venv \
-       # for psycopg
-       libpq-dev \
-       # for lxml
-       libxml2-dev \
-       libxslt1-dev \
-       libz-dev \
-       libxmlsec1-dev \
-       # for python-ldap
-       libldap2-dev \
-       libsasl2-dev \
-       # need libjpeg to build older pillow versions
-       libjpeg-dev \
-       # for pycups
-       libcups2-dev \
-       # for mysqlclient \
-       default-libmysqlclient-dev \
-       # some other build tools
-       swig \
-       libffi-dev \
-       pkg-config \
-       tesseract-ocr \
-       tesseract-ocr-eng \
-       tesseract-ocr-chi-tra \
-       libtesseract-dev \
-       fonts-noto-cjk \
-       fonts-arphic-uming \
-       fonts-wqy-zenhei \
-       fonts-wqy-microhei
+        pipx \
+        python3 \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pipx install --pip-args="--no-cache-dir" "manifestoo>=0.3.1" \
+    && pipx install --pip-args="--no-cache-dir" checklog-odoo \
+    && pipx install --pip-args="--no-cache-dir" pyproject-dependencies \
+    && pipx inject --pip-args="--no-cache-dir" pyproject-dependencies "setuptools-odoo wheel whool"
 
-# We use manifestoo to check licenses, development status and list addons and dependencies
-RUN pipx install --pip-args="--no-cache-dir" "manifestoo>=0.3.1"
-# Used in oca_checklog_odoo to check odoo logs for errors and warnings
-RUN pipx install --pip-args="--no-cache-dir" checklog-odoo
+# 從建構階段複製 Python 虛擬環境和 Odoo
+COPY --from=builder /opt/odoo-venv /opt/odoo-venv
+COPY --from=builder /opt/odoo /opt/odoo
 
-# Install pyproject-dependencies helper scripts.
-ARG build_deps="setuptools-odoo wheel whool"
-RUN pipx install --pip-args="--no-cache-dir" pyproject-dependencies
-RUN pipx inject --pip-args="--no-cache-dir" pyproject-dependencies $build_deps
-
-# 移除啟動腳本，還原為直接建立虛擬環境
-ARG setuptools_constraint
-RUN python$python_version -m venv /opt/odoo-venv \
-    && /opt/odoo-venv/bin/pip install -U "setuptools$setuptools_constraint" "wheel" "pip" \
-    && /opt/odoo-venv/bin/pip list
 ENV PATH=/opt/odoo-venv/bin:$PATH
 
-ARG odoo_version
-
-# Install Odoo requirements (use ADD for correct layer caching).
-# We use requirements from OCB for easier maintenance of older versions.
-ADD https://raw.githubusercontent.com/OCA/OCB/$odoo_version/requirements.txt /tmp/ocb-requirements.txt
-# The sed command is to use the latest version of gevent and greenlet. The
-# latest version works with all versions of Odoo that we support here, and the
-# oldest pinned in Odoo's requirements.txt don't have wheels, and don't build
-# anymore with the latest cython.
-RUN sed -i -E "s/^(gevent|greenlet)==.*/\1/" /tmp/ocb-requirements.txt \
- && pip install --no-cache-dir \
-      -r /tmp/ocb-requirements.txt \
-      packaging
-
-# Install other test requirements.
-# - coverage
-# - websocket-client is required for Odoo browser tests
-RUN pip install --no-cache-dir \
-  coverage \
-  websocket-client
-
-# Install Odoo (use ADD for correct layer caching)
-ARG odoo_org_repo=odoo/odoo
-ADD https://api.github.com/repos/$odoo_org_repo/git/refs/heads/$odoo_version /tmp/odoo-version.json
-RUN mkdir /tmp/getodoo \
-    && (curl -sSL https://github.com/$odoo_org_repo/tarball/$odoo_version | tar -C /tmp/getodoo -xz) \
-    && mv /tmp/getodoo/* /opt/odoo \
-    && rmdir /tmp/getodoo
-RUN pip install --no-cache-dir -e /opt/odoo \
-    && pip list
-
-# Make an empty odoo.cfg
+# 建立 odoo.cfg
 RUN echo "[options]" > /etc/odoo.cfg
 ENV ODOO_RC=/etc/odoo.cfg
 ENV OPENERP_SERVER=/etc/odoo.cfg
 
+# 複製腳本
 COPY bin/* /usr/local/bin/
 
+# 環境變數
 ENV ODOO_VERSION=$odoo_version
 ENV PGHOST=postgres
 ENV PGUSER=odoo
 ENV PGPASSWORD=odoo
 ENV PGDATABASE=odoo
-# This PEP 503 index uses odoo addons from OCA and redirects the rest to PyPI,
-# in effect hiding all non-OCA Odoo addons that are on PyPI.
 ENV PIP_INDEX_URL=https://wheelhouse.odoo-community.org/oca-simple-and-pypi
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PIP_NO_PYTHON_VERSION_WARNING=1
-# Control addons discovery. INCLUDE and EXCLUDE are comma-separated list of
-# addons to include (default: all) and exclude (default: none)
 ENV ADDONS_DIR=.
 ENV ADDONS_PATH=/opt/odoo/addons
 ENV INCLUDE=
@@ -195,3 +216,4 @@ ENV EXCLUDE=
 ENV OCA_GIT_USER_NAME=oca-ci
 ENV OCA_GIT_USER_EMAIL=oca-ci@odoo-community.org
 ENV OCA_ENABLE_CHECKLOG_ODOO=
+ENV PIPX_BIN_DIR=/usr/local/bin

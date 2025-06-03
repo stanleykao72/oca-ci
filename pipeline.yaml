@@ -148,8 +148,6 @@ spec:
     params:
     - name: IMAGE
       value: $(params.image-reference)
-    - name: DOCKERFILE
-      value: Dockerfile.optimized
     - name: KANIKO_EXTRA_ARGS
       value:
         - --build-arg=python_version=$(params.python_version)
