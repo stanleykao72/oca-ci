@@ -163,7 +163,13 @@ spec:
         - --single-snapshot
         - --push-retry=5
         - --compressed-caching=false
-        - --push-timeout=10m
+        resources:
+          requests:
+            memory: "6Gi"
+            cpu: "2"
+          limits:
+            memory: "12Gi"
+            cpu: "4"
         volumeMounts:
         - name: docker-config
           mountPath: /kaniko/.docker

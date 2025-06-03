@@ -86,7 +86,7 @@ RUN mkdir /tmp/getodoo \
 # =====================================
 # 執行階段
 # =====================================
-FROM ubuntu:24.04-slim as runtime
+FROM ubuntu:24.04 as runtime
 ENV LANG=C.UTF-8
 USER root
 
