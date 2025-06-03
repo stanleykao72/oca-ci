@@ -138,19 +138,43 @@ spec:
       value: $(params.revision)
   - name: build-push
     runAfter: ["fetch-source"]
-    taskRef:
-      name: kaniko
+    taskSpec:
+      workspaces:
+      - name: source
+      - name: dockerconfig
+      steps:
+      - name: build-and-push
+        image: gcr.io/kaniko-project/executor:latest
+        workingDir: /workspace/source
+        env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+        command:
+        - /kaniko/executor
+        args:
+        - --dockerfile=Dockerfile.optimized
+        - --context=/workspace/source
+        - --destination=$(params.image-reference)
+        - --build-arg=python_version=$(params.python_version)
+        - --build-arg=codename=$(params.codename)  
+        - --build-arg=odoo_version=$(params.odoo_version)
+        - --snapshotMode=redo
+        - --cache=false
+        - --single-snapshot
+        - --push-retry=5
+        - --compressed-caching=false
+        - --push-timeout=10m
+        volumeMounts:
+        - name: docker-config
+          mountPath: /kaniko/.docker
+          readOnly: true
+      volumes:
+      - name: docker-config
+        secret:
+          secretName: gh-docker-credentials
     workspaces:
     - name: source
       workspace: shared-data
     - name: dockerconfig
       workspace: gh-docker-credentials
-    params:
-    - name: IMAGE
-      value: $(params.image-reference)
-    - name: KANIKO_EXTRA_ARGS
-      value:
-        - --build-arg=python_version=$(params.python_version)
-        - --build-arg=codename=$(params.codename)
-        - --build-arg=odoo_version=$(params.odoo_version)
 
