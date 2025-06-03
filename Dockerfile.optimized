@@ -109,17 +109,14 @@ RUN apt-get update -qq \
         libpq5 \
         libxml2 \
         libxslt1.1 \
-        libldap-2.5-0 \
+        libldap2-5 \
         libsasl2-2 \
         libjpeg8 \
         libcups2 \
         libmysqlclient21 \
         libffi8 \
         # OpenCV 相依套件
-        $(case $(lsb_release -c -s) in \
-            focal|jammy) echo "libgl1-mesa-glx" ;; \
-            noble|*) echo "libgl1" ;; \
-        esac) \
+        libgl1 \
         libglib2.0-0 \
         # OCR 相關
         tesseract-ocr \
@@ -132,28 +129,17 @@ RUN apt-get update -qq \
         fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
-# 安裝 wkhtml (合併到一個 RUN 減少層數)
-RUN case $(lsb_release -c -s) in \
-      focal) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.focal_amd64.deb ;; \
-      jammy) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb ;; \
-      noble) WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.jammy_amd64.deb ;; \
-    esac \
+# 安裝 wkhtml (針對 Ubuntu 24.04 noble)
+RUN WKHTML_DEB_URL=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.jammy_amd64.deb \
     && curl -sSL $WKHTML_DEB_URL -o /tmp/wkhtml.deb \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends /tmp/wkhtml.deb \
     && rm /tmp/wkhtml.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# 安裝 Node.js
-RUN case $(lsb_release -c -s) in \
-      focal) NODE_SOURCE="deb https://deb.nodesource.com/node_15.x focal main" \
-             && curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - ;; \
-      jammy) NODE_SOURCE="deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
-             && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg ;; \
-      noble) NODE_SOURCE="deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
-             && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg ;; \
-    esac \
-    && echo "$NODE_SOURCE" | tee /etc/apt/sources.list.d/nodesource.list \
+# 安裝 Node.js (針對 Ubuntu 24.04 noble)
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq nodejs \
     && npm install -g rtlcss less@3.0.4 less-plugin-clean-css \
@@ -161,8 +147,8 @@ RUN case $(lsb_release -c -s) in \
     && npm cache clean --force
 
 # 安裝 PostgreSQL client
-RUN curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
-    && echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -s -c`-pgdg main" > /etc/apt/sources.list.d/pgclient.list \
+RUN curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt/ noble-pgdg main" > /etc/apt/sources.list.d/pgclient.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client \
     && rm -rf /var/lib/apt/lists/*
@@ -176,10 +162,15 @@ RUN curl -sSL https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-s
 
 # 安裝 pipx 工具和必要套件 (合併安裝減少層數)
 RUN apt-get update -qq \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update -qq \
+    && python_major_version=$(echo "${python_version}" | cut -d. -f1,2) \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
         pipx \
-        python3 \
+        python$python_major_version \
+        python$python_major_version-venv \
         python3-pip \
+        software-properties-common \
     && rm -rf /var/lib/apt/lists/* \
     && pipx install --pip-args="--no-cache-dir" "manifestoo>=0.3.1" \
     && pipx install --pip-args="--no-cache-dir" checklog-odoo \
