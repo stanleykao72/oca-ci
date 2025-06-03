@@ -1,0 +1,6 @@
+# filepath: /Users/stanleykao72/Documents/odoo_workshop/oca-ci/.dockerignore
+.git
+*.log
+tests/
+docs/
+.venv/
